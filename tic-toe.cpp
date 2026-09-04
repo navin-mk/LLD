@@ -332,3 +332,13 @@ int main() {
 
     return 0;
 }
+
+//output:
+// Player 1 wins!
+
+// Board:
+// X X X
+// O O -
+// - - -
+
+// Winner: Player 1

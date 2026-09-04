@@ -532,3 +532,14 @@ int main() {
 
     return 0;
 }
+
+
+//output:
+// Vehicle parked successfully
+// Ticket ID: 1
+// Slot ID: 3
+
+// Parking Fee: ?40
+// Paid ?40 using UPI
+// Payment successful.
+// Vehicle exited successfully.
