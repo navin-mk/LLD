@@ -2,105 +2,78 @@
 #include <unordered_map>
 using namespace std;
 
-// ================= PRODUCT =================
-
+// PRODUCT
 class Product {
 public:
-    string sku;
-    string name;
+    string sku, name;
     double price;
-    string category;
 
-    Product(string sku, string name,
-            double price, string category)
-        : sku(sku),
-          name(name),
-          price(price),
-          category(category) {}
+    Product() {}
+
+    Product(string s, string n, double p) {
+        sku = s;
+        name = n;
+        price = p;
+    }
 };
 
-// ================= INVENTORY ITEM =================
-
+// INVENTORY ITEM
 class InventoryItem {
 public:
-    Product* product;
-    int quantity;
-    int threshold;
+    int quantity, threshold;
 
-    InventoryItem(Product* product,
-                  int quantity,
-                  int threshold)
-        : product(product),
-          quantity(quantity),
-          threshold(threshold) {}
+    InventoryItem() {
+        quantity = 0;
+        threshold = 0;
+    }
 
-    bool isLowStock() const {
+    InventoryItem(int q, int t) {
+        quantity = q;
+        threshold = t;
+    }
+
+    bool isLowStock() {
         return quantity <= threshold;
     }
 };
 
-// ================= WAREHOUSE =================
-
+// WAREHOUSE
 class Warehouse {
 public:
-    int id;
     string name;
-
     unordered_map<string, InventoryItem> inventory;
 
-    Warehouse(int id, string name)
-        : id(id), name(name) {}
+    Warehouse() {}
 
-    void addStock(Product* product,
-                  int quantity,
-                  int threshold) {
+    Warehouse(string n) {
+        name = n;
+    }
 
-        auto it = inventory.find(product->sku);
+    void addStock(string sku, int quantity, int threshold) {
+        auto it = inventory.find(sku);
 
         if (it != inventory.end()) {
             it->second.quantity += quantity;
-        }
-        else {
-            inventory.emplace(
-                product->sku,
-                InventoryItem(
-                    product,
-                    quantity,
-                    threshold
-                )
-            );
+        } else {
+            inventory[sku] = InventoryItem(quantity, threshold);
         }
     }
 
-    bool removeStock(const string& sku,
-                     int quantity) {
-
+    bool removeStock(string sku, int quantity) {
         auto it = inventory.find(sku);
 
-        if (it == inventory.end())
+        if (it == inventory.end() ||
+            quantity <= 0 ||
+            it->second.quantity < quantity) {
             return false;
-
-        if (it->second.quantity < quantity)
-            return false;
+        }
 
         it->second.quantity -= quantity;
-
         return true;
-    }
-
-    int getStock(const string& sku) const {
-
-        auto it = inventory.find(sku);
-
-        if (it == inventory.end())
-            return 0;
-
-        return it->second.quantity;
     }
 };
 
-// ================= USER =================
-
+// USER
 enum class Role {
     ADMIN,
     MANAGER,
@@ -112,196 +85,136 @@ public:
     string name;
     Role role;
 
-    User(string name, Role role)
-        : name(name), role(role) {}
+    User(string n, Role r) {
+        name = n;
+        role = r;
+    }
 
-    bool canTransfer() const {
+    bool canTransfer() {
         return role == Role::ADMIN ||
                role == Role::MANAGER;
     }
 };
 
-// ================= INVENTORY SYSTEM =================
+// NOTIFICATION SERVICE
+class NotificationService {
+public:
+    void checkLowStock(string sku, InventoryItem &item) {
+        if (item.isLowStock()) {
+            cout << "LOW STOCK ALERT: " << sku << endl;
+        }
+    }
+};
 
+// INVENTORY SYSTEM
 class InventorySystem {
-
-private:
+public:
     unordered_map<string, Product> products;
     unordered_map<int, Warehouse> warehouses;
 
-public:
+    NotificationService notification;
 
-    // Add Product
-    void addProduct(string sku,
-                    string name,
-                    double price,
-                    string category) {
-
+    void addProduct(string sku, string name, double price) {
         if (products.find(sku) != products.end()) {
             cout << "Product already exists\n";
             return;
         }
 
-        products.emplace(
-            sku,
-            Product(
-                sku,
-                name,
-                price,
-                category
-            )
-        );
+        products[sku] = Product(sku, name, price);
     }
 
-    // Add Warehouse
-    void addWarehouse(int id,
-                      string name) {
-
+    void addWarehouse(int id, string name) {
         if (warehouses.find(id) != warehouses.end()) {
             cout << "Warehouse already exists\n";
             return;
         }
 
-        warehouses.emplace(
-            id,
-            Warehouse(id, name)
-        );
+        warehouses[id] = Warehouse(name);
     }
 
-    // Add / Receive Stock
-    bool addStock(int warehouseId,
-                  const string& sku,
-                  int quantity,
-                  int threshold) {
-
-        auto warehouseIt =
-            warehouses.find(warehouseId);
-
-        auto productIt =
-            products.find(sku);
-
-        if (warehouseIt == warehouses.end() ||
-            productIt == products.end()) {
-
-            cout << "Invalid warehouse or product\n";
-            return false;
+    void addStock(int warehouseId, string sku,
+                  int quantity, int threshold) {
+        if (warehouses.find(warehouseId) == warehouses.end() ||
+            products.find(sku) == products.end() ||
+            quantity <= 0 || threshold < 0) {
+            cout << "Invalid details\n";
+            return;
         }
 
-        warehouseIt->second.addStock(
-            &productIt->second,
-            quantity,
-            threshold
+        warehouses[warehouseId].addStock(
+            sku, quantity, threshold
         );
 
-        return true;
+        cout << "Stock added successfully\n";
     }
 
-    // Remove / Ship Stock
-    bool removeStock(int warehouseId,
-                     const string& sku,
-                     int quantity) {
-
-        auto warehouseIt =
-            warehouses.find(warehouseId);
-
-        if (warehouseIt == warehouses.end())
-            return false;
-
-        Warehouse& warehouse =
-            warehouseIt->second;
-
-        if (!warehouse.removeStock(
-                sku,
-                quantity)) {
-
-            cout << "Insufficient stock\n";
-            return false;
+    void removeStock(int warehouseId, string sku, int quantity) {
+        if (warehouses.find(warehouseId) == warehouses.end()) {
+            cout << "Warehouse not found\n";
+            return;
         }
 
-        // Low-stock alert
-        auto itemIt =
-            warehouse.inventory.find(sku);
+        Warehouse &w = warehouses[warehouseId];
 
-        if (itemIt != warehouse.inventory.end() &&
-            itemIt->second.isLowStock()) {
-
-            cout << "LOW STOCK ALERT: "
-                 << sku << endl;
+        if (!w.removeStock(sku, quantity)) {
+            cout << "Insufficient stock or invalid quantity\n";
+            return;
         }
 
-        return true;
+        cout << "Stock removed successfully\n";
+
+        auto it = w.inventory.find(sku);
+
+        if (it != w.inventory.end()) {
+            notification.checkLowStock(sku, it->second);
+        }
     }
 
-    // Transfer Stock
-    bool transferStock(int fromWarehouse,
-                       int toWarehouse,
-                       const string& sku,
-                       int quantity,
-                       const User& user) {
-
-        // Access control
+    void transferStock(int from, int to, string sku,
+                       int quantity, User &user) {
         if (!user.canTransfer()) {
             cout << "Access denied\n";
-            return false;
+            return;
         }
 
-        auto sourceIt =
-            warehouses.find(fromWarehouse);
-
-        auto destinationIt =
-            warehouses.find(toWarehouse);
-
-        if (sourceIt == warehouses.end() ||
-            destinationIt == warehouses.end()) {
-
-            cout << "Invalid warehouse\n";
-            return false;
+        if (warehouses.find(from) == warehouses.end() ||
+            warehouses.find(to) == warehouses.end() ||
+            products.find(sku) == products.end() ||
+            from == to || quantity <= 0) {
+            cout << "Invalid transfer details\n";
+            return;
         }
 
-        Warehouse& source =
-            sourceIt->second;
+        Warehouse &source = warehouses[from];
+        Warehouse &destination = warehouses[to];
 
-        Warehouse& destination =
-            destinationIt->second;
+        auto it = source.inventory.find(sku);
 
-        auto itemIt =
-            source.inventory.find(sku);
-
-        if (itemIt == source.inventory.end()) {
-            cout << "Product not found in source warehouse\n";
-            return false;
-        }
-
-        if (itemIt->second.quantity < quantity) {
+        if (it == source.inventory.end() ||
+            it->second.quantity < quantity) {
             cout << "Insufficient stock\n";
-            return false;
+            return;
         }
 
-        Product* product =
-            itemIt->second.product;
+        int threshold = it->second.threshold;
 
-        int threshold =
-            itemIt->second.threshold;
+        if (!source.removeStock(sku, quantity)) {
+            cout << "Transfer failed\n";
+            return;
+        }
 
-        // Remove from source
-        source.removeStock(
-            sku,
-            quantity
-        );
+        destination.addStock(sku, quantity, threshold);
 
-        // Add to destination
-        destination.addStock(
-            product,
-            quantity,
-            threshold
-        );
+        cout << "Stock transferred successfully\n";
 
-        return true;
+        auto sourceItem = source.inventory.find(sku);
+
+        if (sourceItem != source.inventory.end()) {
+            notification.checkLowStock(sku, sourceItem->second);
+        }
     }
 
-    // Search Product
-    void searchProduct(const string& sku) {
-
+    void searchProduct(string sku) {
         auto it = products.find(sku);
 
         if (it == products.end()) {
@@ -309,138 +222,64 @@ public:
             return;
         }
 
-        Product& product = it->second;
-
-        cout << "\nProduct Details\n";
-        cout << "SKU      : " << product.sku << endl;
-        cout << "Name     : " << product.name << endl;
-        cout << "Price    : " << product.price << endl;
-        cout << "Category : " << product.category << endl;
+        cout << "\nProduct: " << it->second.name << endl;
+        cout << "SKU: " << it->second.sku << endl;
+        cout << "Price: " << it->second.price << endl;
     }
 
-    // Inventory Report
     void generateReport() {
-
         cout << "\n===== INVENTORY REPORT =====\n";
 
-        for (auto& warehousePair : warehouses) {
+        for (auto &w : warehouses) {
+            cout << "\nWarehouse: " << w.second.name << endl;
 
-            Warehouse& warehouse =
-                warehousePair.second;
+            for (auto &item : w.second.inventory) {
+                string sku = item.first;
+                InventoryItem &inv = item.second;
 
-            cout << "\nWarehouse: "
-                 << warehouse.name
-                 << " (ID: "
-                 << warehouse.id
-                 << ")\n";
+                cout << "Product: " << products[sku].name
+                     << " | Quantity: " << inv.quantity;
 
-            for (auto& itemPair :
-                 warehouse.inventory) {
-
-                InventoryItem& item =
-                    itemPair.second;
-
-                cout << "SKU: "
-                     << item.product->sku
-                     << " | Product: "
-                     << item.product->name
-                     << " | Quantity: "
-                     << item.quantity;
-
-                if (item.isLowStock())
+                if (inv.isLowStock()) {
                     cout << " | LOW STOCK";
+                }
 
                 cout << endl;
             }
         }
-
-        cout << "============================\n";
     }
 };
 
-// ================= MAIN =================
-
+// MAIN
 int main() {
-
     InventorySystem system;
 
-    // Warehouses
-    system.addWarehouse(
-        1,
-        "Chennai Warehouse"
-    );
+    system.addWarehouse(1, "Chennai");
+    system.addWarehouse(2, "Bangalore");
 
-    system.addWarehouse(
-        2,
-        "Bangalore Warehouse"
-    );
+    system.addProduct("P101", "Laptop", 60000);
+    system.addProduct("P102", "Mouse", 1000);
 
-    // Products
-    system.addProduct(
-        "P101",
-        "Laptop",
-        60000,
-        "Electronics"
-    );
+    system.addStock(1, "P101", 20, 5);
+    system.addStock(1, "P102", 50, 10);
+    system.addStock(2, "P101", 10, 5);
 
-    system.addProduct(
-        "P102",
-        "Mouse",
-        1000,
-        "Accessories"
-    );
+    User admin("Navin", Role::ADMIN);
+    User staff("John", Role::STAFF);
 
-    // Add stock
-    system.addStock(
-        1,
-        "P101",
-        20,
-        5
-    );
-
-    system.addStock(
-        1,
-        "P102",
-        50,
-        10
-    );
-
-    system.addStock(
-        2,
-        "P101",
-        10,
-        5
-    );
-
-    // Search
+    cout << "\n--- Product Search ---\n";
     system.searchProduct("P101");
 
-    // Remove stock
-    cout << "\nRemoving 16 laptops...\n";
+    cout << "\n--- Remove Stock ---\n";
+    system.removeStock(1, "P101", 16);
 
-    system.removeStock(
-        1,
-        "P101",
-        16
-    );
+    cout << "\n--- Staff Transfer Attempt ---\n";
+    system.transferStock(1, 2, "P101", 2, staff);
 
-    // Transfer
-    User manager(
-        "John",
-        Role::MANAGER
-    );
+    cout << "\n--- Admin Transfer ---\n";
+    system.transferStock(1, 2, "P101", 2, admin);
 
-    cout << "\nTransferring 2 laptops...\n";
-
-    system.transferStock(
-        1,
-        2,
-        "P101",
-        2,
-        manager
-    );
-
-    // Report
+    cout << "\n--- Inventory Report ---\n";
     system.generateReport();
 
     return 0;
